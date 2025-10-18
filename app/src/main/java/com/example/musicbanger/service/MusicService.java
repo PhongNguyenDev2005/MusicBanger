@@ -550,6 +550,7 @@ public class MusicService extends Service {
 
         public boolean isShuffle() { return shuffle; }
         public RepeatMode getRepeatMode() { return repeatMode; }
+        public void setRepeatMode(RepeatMode repeatMode) { this.repeatMode = repeatMode; }
         public int getCurrentIndex() { return index; }
         public List<Track> getPlaylist() { return new ArrayList<>(playback); }
     }

@@ -41,6 +41,7 @@ public class NowPlayingActivity extends AppCompatActivity {
     private boolean bound = false;
     private List<Track> trackList;
     private int currentPosition;
+    int time_played=0;
 
     // Handler for updating progress
     private final Handler handler = new Handler();
@@ -80,20 +81,31 @@ public class NowPlayingActivity extends AppCompatActivity {
                 public void onPlaybackStateChanged(int playbackState) {
                     if (playbackState == Player.STATE_ENDED) {
                         MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
-                        if (!(repeatMode == MusicService.PlaylistManager.RepeatMode.NONE)){
-                            switch (repeatMode)
-                            {
+                        switch (repeatMode) {
+                            case NONE:
+                                playNextTrack();
+                                break;
+
                                 case ALL:
                                     Track test = trackList.get(currentPosition);
                                     loadAndPlayTrack(test);
                                     break;
-                                case ONE:
+                                    case ONE:
                                     Track currentTrack = trackList.get(currentPosition);
                                     loadAndPlayTrack(currentTrack);
-                                    break;
-                            }
-                        } else {
-                            playNextTrack();
+
+                                    if(time_played>0){
+                                        time_played=0;
+                                        playNextTrack();
+                                        updateUI();
+                                        musicService.getPlaylistManager().setRepeatMode(MusicService.PlaylistManager.RepeatMode.NONE);
+                                        int color = getResources().getColor(R.color.icon_color_secondary, getTheme());
+                                        btnRepeat.setColorFilter(color);
+                                        updateRepeatState();
+                                        break;
+                                    }
+                                    time_played++;
+                                        break;
 
                         }
                     }
@@ -415,15 +427,17 @@ public class NowPlayingActivity extends AppCompatActivity {
     }
 
     private void updateRepeatState() {
-        if (btnRepeat != null && bound && musicService != null) {
-            int color = getResources().getColor(R.color.icon_color_secondary, getTheme());
-            MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
-            if (repeatMode == MusicService.PlaylistManager.RepeatMode.ONE ||
-                    repeatMode == MusicService.PlaylistManager.RepeatMode.ALL) {
-                color = getResources().getColor(R.color.primary_color, getTheme());
-            }
-            btnRepeat.setColorFilter(color);
+        if (musicService == null || btnRepeat == null) return;
+
+        MusicService.PlaylistManager.RepeatMode mode = musicService.getPlaylistManager().getRepeatMode();
+        int color;
+        if (mode == MusicService.PlaylistManager.RepeatMode.NONE) {
+            color = getResources().getColor(R.color.icon_color_secondary, getTheme());
+        } else {
+            color = getResources().getColor(R.color.primary_color, getTheme());
+            // Thêm logic để phân biệt REPEAT_ONE nếu cần (ví dụ: thay đổi icon)
         }
+        btnRepeat.setColorFilter(color);
     }
 
     private void loadAndPlayTrack(Track track) {
