@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme ghi đè cho Search EditText -->
+    <style name="SearchEditTextTheme" parent="Theme.Material3.Light">
+        <item name="colorOnSurface">#FF000000</item>
+        <item name="colorOnBackground">#FF000000</item>
+        <item name="colorPrimary">#FF000000</item>
+        <item name="colorControlActivated">#FF000000</item>
+        <item name="colorControlNormal">#FF666666</item>
+        <item name="colorControlHighlight">#FF000000</item>
+        <item name="android:textColor">#FF000000</item>
+        <item name="android:textColorHint">#FF666666</item>
+    </style>
+
+</resources>

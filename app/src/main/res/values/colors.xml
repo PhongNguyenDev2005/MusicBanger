@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colors đã có -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Colors cho Music Banger App -->
+    <color name="primary_color">#FF1DB954</color>
+    <color name="app_background">#FFFFFF</color>
+    <color name="card_background">#F8F8F8</color>
+    <color name="text_primary">#000000</color>
+    <color name="text_secondary">#666666</color>
+    <color name="text_tertiary">#888888</color>
+    <color name="text_artist">#666666</color>
+    <color name="text_time">#999999</color>
+    <color name="bottom_nav_active">#FF1DB954</color>
+    <color name="bottom_nav_inactive">#888888</color>
+    <color name="seek_bar_background">#E0E0E0</color>
+    <color name="seek_bar_progress">#FF1DB954</color>
+    <color name="album_art_placeholder">#F0F0F0</color>
+    <color name="item_placeholder_background">#E5E5E5</color>
+    <color name="card_stroke">#20000000</color>
+
+
+    <!-- THÊM MÀU NÀY -->
+    <color name="icon_color_secondary">#888888</color>
+
+    <!-- Các color khác nếu cần -->
+    <color name="icon_color_primary">#000000</color>
+    <color name="chip_background">#F0F0F0</color>
+
+</resources>

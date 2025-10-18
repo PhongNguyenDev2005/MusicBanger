@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">My Music App</string>
+    <string name="greeting">Chào buổi sáng!</string>
+    <string name="recently_played">Nghe gần đây</string>
+    <string name="suggestions_for_you">Gợi ý cho bạn</string>
+    <string name="home">Trang chủ</string>
+    <string name="search">Tìm kiếm</string>
+    <string name="library">Thư viện</string>
+
+    <string name="now_playing">Đang phát</string>
+
+    <string name="back_button">Nút Quay lại</string>
+    <string name="menu_button">Nút Menu</string>
+    <string name="shuffle_button">Nút Trộn bài</string>
+    <string name="previous_button">Nút Bài hát trước</string>
+    <string name="next_button">Nút Bài hát kế tiếp</string>
+    <string name="repeat_button">Nút Lặp lại</string>
+    <string name="play_pause_button">Nút Phát/Tạm dừng</string>
+    <string name="music_notification_channel">Music Playback</string>
+    <string name="music_notification_channel_description">Notifications for music playback</string>
+    <string name="default_song_title">Không có bài hát</string>
+    <string name="default_artist_name">Không xác định</string>
+    <string name="album_art">Ảnh album</string>
+    <string name="play_pause">Play/Pause</string>
+    <string name="previous">Bài trước</string>
+    <string name="next">Bài sau</string>
+    <string name="shuffle">Xáo trộn</string>
+    <string name="repeat">Lặp lại</string>
+    <string name="back">Quay lại</string>
+</resources>
