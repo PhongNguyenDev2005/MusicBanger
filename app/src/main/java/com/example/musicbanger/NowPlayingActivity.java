@@ -79,7 +79,23 @@ public class NowPlayingActivity extends AppCompatActivity {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     if (playbackState == Player.STATE_ENDED) {
-                        playNextTrack();
+                        MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
+                        if (!(repeatMode == MusicService.PlaylistManager.RepeatMode.NONE)){
+                            switch (repeatMode)
+                            {
+                                case ALL:
+                                    Track test = trackList.get(currentPosition);
+                                    loadAndPlayTrack(test);
+                                    break;
+                                case ONE:
+                                    Track currentTrack = trackList.get(currentPosition);
+                                    loadAndPlayTrack(currentTrack);
+                                    break;
+                            }
+                        } else {
+                            playNextTrack();
+
+                        }
                     }
                 }
             });
