@@ -59,6 +59,7 @@
             app:layout_constraintStart_toStartOf="@+id/tvSongTitle"
             app:layout_constraintTop_toBottomOf="@+id/tvSongTitle" />
 
+        <!-- Thêm ImageView cho menu context -->
         <ImageView
             android:id="@+id/ivMore"
             android:layout_width="24dp"

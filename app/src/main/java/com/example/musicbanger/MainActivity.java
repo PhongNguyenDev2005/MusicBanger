@@ -1,6 +1,9 @@
 package com.example.musicbanger;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
+import androidx.media.session.MediaButtonReceiver;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -13,12 +16,15 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.musicbanger.adapters.SongAdapter;
 import com.example.musicbanger.api.JamendoApi;
+import com.example.musicbanger.manager.UserPlaylistManager;
+import com.example.musicbanger.model.Playlist;
 import com.example.musicbanger.model.Track;
 import com.example.musicbanger.service.MusicService;
 
@@ -41,6 +47,7 @@ public class MainActivity extends AppCompatActivity implements
     private SongAdapter suggestionAdapter;
     private TextView tvGreeting;
     private ProgressBar loadingProgress;
+    private MiniPlayer miniPlayer;
 
     // Data
     private List<Track> recentTracks = new ArrayList<>();
@@ -57,8 +64,6 @@ public class MainActivity extends AppCompatActivity implements
             MusicService.LocalBinder binder = (MusicService.LocalBinder) service;
             musicService = binder.getService();
             serviceBound = true;
-
-            // Register observer
             musicService.addObserver(MainActivity.this);
 
             Log.d("MainActivity", "MusicService connected");
@@ -75,6 +80,8 @@ public class MainActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        UserPlaylistManager.initialize(this);
 
         Log.d("MainActivity", "onCreate started");
 
@@ -96,19 +103,68 @@ public class MainActivity extends AppCompatActivity implements
         if (loadingProgress != null) {
             loadingProgress.setVisibility(View.GONE);
         }
+
+        // MINI PLAYER
+        miniPlayer = findViewById(R.id.miniPlayer);
+        if (miniPlayer != null) {
+            miniPlayer.setListener(new MiniPlayer.MiniPlayerListener() {
+                @Override
+                public void onPlayPauseClicked() {
+                    if (musicService != null) {
+                        if (musicService.isPlaying()) {
+                            musicService.pause();
+                        } else {
+                            musicService.resume();
+                        }
+                    }
+                }
+
+                @Override
+                public void onNextClicked() {
+                    if (musicService != null) {
+                        musicService.playNext();
+                    }
+                }
+
+                @Override
+                public void onMiniPlayerClicked() {
+                    // MỞ LẠI NOW PLAYING KHI NHẤN VÀO MINI PLAYER
+                    startActivity(new Intent(MainActivity.this, NowPlayingActivity.class));
+                }
+
+                @Override
+                public MusicService getMusicService() {
+                    return musicService;
+                }
+            });
+        }
+
+        if (loadingProgress != null) {
+            loadingProgress.setVisibility(View.GONE);
+        }
     }
 
     private void setupRecyclerViews() {
+        android.util.Log.d("MainActivity", "Setting up recycler views...");
+
         // Recent tracks (horizontal)
         recentAdapter = new SongAdapter(recentTracks, this, true);
+        android.util.Log.d("MainActivity", "Recent adapter created: " + (recentAdapter != null));
+
         recyclerViewRecent.setLayoutManager(new LinearLayoutManager(this,
                 LinearLayoutManager.HORIZONTAL, false));
         recyclerViewRecent.setAdapter(recentAdapter);
 
         // Suggested tracks (vertical)
         suggestionAdapter = new SongAdapter(suggestedTracks, this, false);
+        android.util.Log.d("MainActivity", "Suggestion adapter created: " + (suggestionAdapter != null));
+
         recyclerViewSuggestions.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewSuggestions.setAdapter(suggestionAdapter);
+
+        // SET CLICK LISTENER
+        setupSongAdapters();
+        android.util.Log.d("MainActivity", "Recycler views setup completed");
     }
 
     private void setupClickListeners() {
@@ -123,6 +179,205 @@ public class MainActivity extends AppCompatActivity implements
         }
         // ===== BOTTOM NAVIGATION CLICKS =====
         setupBottomNavigation();
+        setupQuickActions();
+    }
+
+    private void setupQuickActions() {
+        // Nút Yêu thích
+        CardView btnFavorites = findViewById(R.id.btnFavorites);
+        ImageView ivFavoriteIcon = findViewById(R.id.ivFavoriteIcon);
+
+        btnFavorites.setOnClickListener(v -> {
+            openFavoritesPlaylist();
+        });
+
+        // Nút Playlist
+        CardView btnPlaylists = findViewById(R.id.btnPlaylists);
+        btnPlaylists.setOnClickListener(v -> {
+            openPlaylistManager();
+        });
+
+        // Nút Lịch sử
+        CardView btnHistory = findViewById(R.id.btnHistory);
+        btnHistory.setOnClickListener(v -> {
+            openRecentlyPlayed();
+        });
+    }
+
+    // Mở playlist yêu thích
+    private void openFavoritesPlaylist() {
+        Playlist favorites = UserPlaylistManager.getInstance().getFavoritesPlaylist();
+        if (favorites != null && !favorites.getTracks().isEmpty()) {
+            // Mở activity playlist chi tiết
+            Intent intent = new Intent(this, PlaylistDetailActivity.class);
+            intent.putExtra("playlist_id", favorites.getId());
+            intent.putExtra("playlist_name", favorites.getName());
+            startActivity(intent);
+        } else {
+            Toast.makeText(this, "Chưa có bài hát yêu thích", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Mở quản lý playlist
+    private void openPlaylistManager() {
+        Intent intent = new Intent(this, PlaylistManagerActivity.class);
+        startActivity(intent);
+    }
+
+    // Mở lịch sử nghe
+    private void openRecentlyPlayed() {
+        Playlist recentlyPlayed = UserPlaylistManager.getInstance().getRecentlyPlayedPlaylist();
+        if (recentlyPlayed != null && !recentlyPlayed.getTracks().isEmpty()) {
+            Intent intent = new Intent(this, PlaylistDetailActivity.class);
+            intent.putExtra("playlist_id", recentlyPlayed.getId());
+            intent.putExtra("playlist_name", recentlyPlayed.getName());
+            startActivity(intent);
+        } else {
+            Toast.makeText(this, "Chưa có bài hát nào được nghe", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Thiết lập menu context cho adapter
+    private void setupSongAdapters() {
+        // Adapter cho recent tracks
+        recentAdapter = new SongAdapter(recentTracks, this, true);
+        recentAdapter.setOnSongMenuClickListener(new SongAdapter.OnSongMenuClickListener() {
+            @Override
+            public void onAddToPlaylist(Track track) {
+                android.util.Log.d("MainActivity", "onAddToPlaylist called for: " + track.getTitle());
+                showAddToPlaylistDialog(track);
+            }
+
+            @Override
+            public void onToggleFavorite(Track track) {
+                android.util.Log.d("MainActivity", "onToggleFavorite called for: " + track.getTitle());
+                UserPlaylistManager.getInstance().toggleFavorite(track);
+
+                // Kiểm tra trạng thái ngay lập tức
+                UserPlaylistManager.getInstance().isFavorite(track, new UserPlaylistManager.FavoriteCallback() {
+                    @Override
+                    public void onFavoriteChecked(boolean isFavorite) {
+                        android.util.Log.d("MainActivity", "Favorite status after toggle: " + isFavorite);
+                        Toast.makeText(MainActivity.this,
+                                isFavorite ? "Đã thêm vào yêu thích" : "Đã bỏ khỏi yêu thích",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            @Override
+            public void onAddToQueue(Track track) {
+                addToQueue(track);
+            }
+
+            @Override
+            public void onRemoveFromPlaylist(Track track) {
+                Toast.makeText(MainActivity.this, "Tính năng không khả dụng", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Adapter cho suggested tracks
+        suggestionAdapter = new SongAdapter(suggestedTracks, this, false);
+        suggestionAdapter.setOnSongMenuClickListener(new SongAdapter.OnSongMenuClickListener() {
+            @Override
+            public void onAddToPlaylist(Track track) {
+                android.util.Log.d("MainActivity", "onAddToPlaylist called for: " + track.getTitle());
+                showAddToPlaylistDialog(track);
+            }
+
+            @Override
+            public void onToggleFavorite(Track track) {
+                android.util.Log.d("MainActivity", "onToggleFavorite called for: " + track.getTitle());
+                UserPlaylistManager.getInstance().toggleFavorite(track);
+
+                UserPlaylistManager.getInstance().isFavorite(track, new UserPlaylistManager.FavoriteCallback() {
+                    @Override
+                    public void onFavoriteChecked(boolean isFavorite) {
+                        android.util.Log.d("MainActivity", "Favorite status after toggle: " + isFavorite);
+                        Toast.makeText(MainActivity.this,
+                                isFavorite ? "Đã thêm vào yêu thích" : "Đã bỏ khỏi yêu thích",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            @Override
+            public void onAddToQueue(Track track) {
+                addToQueue(track);
+            }
+
+            @Override
+            public void onRemoveFromPlaylist(Track track) {
+                Toast.makeText(MainActivity.this, "Tính năng không khả dụng", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        recyclerViewRecent.setAdapter(recentAdapter);
+        recyclerViewSuggestions.setAdapter(suggestionAdapter);
+
+        android.util.Log.d("MainActivity", "Song adapters setup completed");
+    }
+
+    // Hiển thị dialog thêm vào playlist
+    private void showAddToPlaylistDialog(Track track) {
+        List<Playlist> allPlaylists = UserPlaylistManager.getInstance().getAllPlaylists();
+
+        // Lọc bỏ playlist mặc định nếu muốn (tùy chọn)
+        List<Playlist> userCreatedPlaylists = new ArrayList<>();
+        for (Playlist playlist : allPlaylists) {
+            if (!playlist.getName().equals("Bài hát yêu thích") &&
+                    !playlist.getName().equals("Nghe gần đây")) {
+                userCreatedPlaylists.add(playlist);
+            }
+        }
+
+        if (userCreatedPlaylists.isEmpty()) {
+            Toast.makeText(this, "Chưa có playlist nào. Hãy tạo playlist trước!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String[] playlistNames = new String[userCreatedPlaylists.size()];
+        for (int i = 0; i < userCreatedPlaylists.size(); i++) {
+            playlistNames[i] = userCreatedPlaylists.get(i).getName();
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Thêm vào playlist")
+                .setItems(playlistNames, (dialog, which) -> {
+                    Playlist selectedPlaylist = userCreatedPlaylists.get(which);
+                    UserPlaylistManager.getInstance().addTrackToPlaylist(selectedPlaylist.getId(), track);
+                    Toast.makeText(this, "Đã thêm vào " + selectedPlaylist.getName(), Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
+    }
+
+    // Bật/tắt yêu thích
+    private void toggleFavoriteTrack(Track track) {
+        UserPlaylistManager.getInstance().toggleFavorite(track);
+        boolean isFavorite = UserPlaylistManager.getInstance().isFavorite(track);
+
+        Toast.makeText(this,
+                isFavorite ? "Đã thêm vào yêu thích" : "Đã bỏ khỏi yêu thích",
+                Toast.LENGTH_SHORT).show();
+
+        // Cập nhật UI nếu cần
+        updateFavoriteIcon();
+    }
+
+    // Thêm vào hàng đợi
+    private void addToQueue(Track track) {
+        if (serviceBound && musicService != null) {
+            // Thêm bài hát vào sau bài hiện tại
+            musicService.getPlaylistManager().getPlaylist().add(
+                    musicService.getPlaylistManager().getCurrentIndex() + 1, track
+            );
+            Toast.makeText(this, "Đã thêm vào hàng đợi", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void updateFavoriteIcon() {
+        // Có thể cập nhật icon yêu thích nếu cần
     }
 
     private void setupBottomNavigation() {
@@ -486,9 +741,22 @@ public class MainActivity extends AppCompatActivity implements
 
                 int globalPosition = allTracks.indexOf(clickedTrack);
                 if (globalPosition != -1) {
-                    openNowPlayingActivity(globalPosition);
-                } else {
-                    openNowPlayingActivity(0);
+                    // LƯU VỊ TRÍ BÀI HÁT
+                    MusicDataManager.getInstance().setTracks(allTracks);
+                    MusicDataManager.getInstance().setCurrentPosition(globalPosition);
+
+                    if (serviceBound && musicService != null) {
+                        // QUAN TRỌNG: RESET PLAYLIST VÀ PHÁT DANH SÁCH MỚI
+                        musicService.resetAndPlayTracks(allTracks, globalPosition);
+
+                        Log.d("MainActivity", "Reset và phát bài mới từ trang chủ: " + clickedTrack.getTitle());
+                    }
+
+                    // MỞ NOW PLAYING ACTIVITY
+                    Intent intent = new Intent(MainActivity.this, NowPlayingActivity.class);
+                    startActivity(intent);
+
+                    Log.d("MainActivity", "Mở NowPlaying với bài: " + clickedTrack.getTitle());
                 }
             }
         } catch (Exception e) {
@@ -532,14 +800,18 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onPlaybackStateChanged(boolean isPlaying) {
         Log.d("MainActivity", "Playback state changed: " + isPlaying);
-        // Update mini player if needed
+        if (miniPlayer != null && musicService != null && musicService.getCurrentTrack() != null) {
+            miniPlayer.updatePlayPauseState(isPlaying);
+        }
     }
 
     @Override
     public void onTrackChanged(Track currentTrack) {
         Log.d("MainActivity", "Track changed: " +
                 (currentTrack != null ? currentTrack.getTitle() : "null"));
-        // Update mini player if needed
+        if (miniPlayer != null && currentTrack != null) {
+            miniPlayer.updatePlayer(currentTrack, musicService != null && musicService.isPlaying());
+        }
     }
 
     // ==================== LIFECYCLE ====================
@@ -547,8 +819,27 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d("MainActivity", "onResume");
+        Log.d("MainActivity", "onResume - Kiểm tra MiniPlayer");
+
+        // CẬP NHẬT DANH SÁCH RECENT KHI QUAY LẠI
+        updateRecentTracksFromPlaylist();
+
+        // KIỂM TRA VÀ HIỂN THỊ MINI PLAYER NẾU CÓ BÀI ĐANG PHÁT
+        if (serviceBound && musicService != null) {
+            Track currentTrack = musicService.getCurrentTrack();
+            if (currentTrack != null && miniPlayer != null) {
+                miniPlayer.updatePlayer(currentTrack, musicService.isPlaying());
+                Log.d("MainActivity", "Hiển thị MiniPlayer với bài: " + currentTrack.getTitle());
+            }
+        }
     }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+    }
+
+
 
     @Override
     protected void onPause() {
@@ -563,6 +854,39 @@ public class MainActivity extends AppCompatActivity implements
             musicService.removeObserver(this);
             unbindService(serviceConnection);
             serviceBound = false;
+        }
+    }
+
+    private void updateRecentTracksFromPlaylist() {
+        Playlist recentlyPlayed = UserPlaylistManager.getInstance().getRecentlyPlayedPlaylist();
+        if (recentlyPlayed != null && !recentlyPlayed.getTracks().isEmpty()) {
+            // Lấy tối đa 3 bài gần đây nhất
+            List<Track> recentTracksFromPlaylist = new ArrayList<>();
+            int count = Math.min(3, recentlyPlayed.getTracks().size());
+            for (int i = 0; i < count; i++) {
+                recentTracksFromPlaylist.add(recentlyPlayed.getTracks().get(i));
+            }
+
+            recentTracks.clear();
+            recentTracks.addAll(recentTracksFromPlaylist);
+            recentAdapter.updateTracks(recentTracks);
+        }
+    }
+
+    // THÊM PHƯƠNG THỨC PHÁT NGẪU NHIÊN TRONG DANH SÁCH HIỆN TẠI
+    private void shufflePlayCurrentTracks() {
+        if (serviceBound && musicService != null) {
+            if (!allTracks.isEmpty()) {
+                musicService.shufflePlayTracks(allTracks);
+
+                // Mở NowPlayingActivity
+                Intent intent = new Intent(this, NowPlayingActivity.class);
+                startActivity(intent);
+
+                Toast.makeText(this, "Đang phát ngẫu nhiên", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Không có bài hát để phát", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 }

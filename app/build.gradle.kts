@@ -50,9 +50,10 @@ dependencies {
     implementation ("com.google.android.exoplayer:exoplayer-ui:2.19.1")
     implementation ("com.google.android.exoplayer:exoplayer-hls:2.19.1")
     implementation ("com.google.android.exoplayer:exoplayer-dash:2.19.1")
-    implementation("com.google.android.material:material:1.6.0")
+    implementation ("com.google.android.material:material:1.6.0")
     implementation ("androidx.media:media:1.6.0")
     implementation ("androidx.media2:media2-session:1.2.1")
+    implementation ("androidx.media2:media2-widget:1.2.1")
 
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
@@ -61,4 +62,16 @@ dependencies {
     implementation ("com.github.bumptech.glide:glide:4.14.2")
     implementation(libs.palette)
     annotationProcessor ("com.github.bumptech.glide:compiler:4.14.2")
+    implementation ("com.github.bumptech.glide:glide:4.15.1")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.15.1")
+
+    val room_version = "2.6.0"
+    implementation("androidx.room:room-runtime:$room_version")
+    annotationProcessor("androidx.room:room-compiler:$room_version")
+
+    // Optional - Kotlin Extensions and Coroutines support for Room
+    implementation("androidx.room:room-ktx:$room_version")
+
+    // Gson for JSON serialization
+    implementation("com.google.code.gson:gson:2.10.1")
 }

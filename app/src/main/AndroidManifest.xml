@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:usesCleartextTraffic="true"
@@ -19,6 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MusicBanger"
+        android:name=".MusicBangerApp"
         tools:targetApi="31">
 
         <!-- Main Activity -->
@@ -31,22 +33,47 @@
             </intent-filter>
         </activity>
 
-        <!-- Now Playing Activity - THÊM VÀO ĐÂY -->
+        <!-- Now Playing Activity -->
         <activity
             android:name=".NowPlayingActivity"
             android:exported="false"
             android:theme="@style/Theme.MusicBanger" />
 
-        <!-- Music Service -->
-        <service
-            android:name=".service.MusicService"
-            android:enabled="true"
-            android:exported="false" />
-
+        <!-- Search Activity -->
         <activity
             android:name=".SearchActivity"
             android:exported="false"
             android:theme="@style/Theme.MusicBanger" />
+
+        <activity
+            android:name=".PlaylistManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MusicBanger" />
+        <activity
+            android:name=".PlaylistDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MusicBanger" />
+
+        <!-- Music Service - THÊM INTENT-FILTER -->
+        <service
+            android:name=".service.MusicService"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!-- Media Button Receiver -->
+        <receiver
+            android:name="androidx.media.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

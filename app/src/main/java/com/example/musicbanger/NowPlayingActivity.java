@@ -16,8 +16,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.google.android.exoplayer2.Player;
@@ -34,14 +34,14 @@ public class NowPlayingActivity extends AppCompatActivity {
     private ImageView ivAlbumArt, btnPlayPause, btnBack, btnNext, btnPrevious, btnShuffle, btnRepeat, btnMenu;
     private TextView tvSongTitle, tvArtistName, tvCurrentTime, tvTotalTime;
     private ConstraintLayout seekBarLayout;
-    private View seekBarBackground, seekBarProgress, seekThumb, seekThumbHitbox ;
+    private View seekBarBackground, seekBarProgress, seekThumb, seekThumbHitbox;
+    private MusicService.MusicServiceObserver musicObserver;
 
     // Music service and binding
     private MusicService musicService;
     private boolean bound = false;
     private List<Track> trackList;
     private int currentPosition;
-    int time_played=0;
 
     // Handler for updating progress
     private final Handler handler = new Handler();
@@ -59,7 +59,7 @@ public class NowPlayingActivity extends AppCompatActivity {
                     tvTotalTime.setText(formatTime((int) (duration / 1000)));
                 }
             }
-            handler.postDelayed(this, 50); // Update every 50ms for ultra-smoothness
+            handler.postDelayed(this, 50);
         }
     };
 
@@ -70,55 +70,64 @@ public class NowPlayingActivity extends AppCompatActivity {
             musicService = b.getService();
             bound = true;
 
-            // Add Player Listener here for sync
-            musicService.getPlayer().addListener(new Player.Listener() {
+            // TẠO VÀ THÊM OBSERVER
+            musicObserver = new MusicService.MusicServiceObserver() {
                 @Override
-                public void onIsPlayingChanged(boolean isPlaying) {
-                    updatePlayPauseButton(isPlaying);
+                public void onPlaybackStateChanged(boolean isPlaying) {
+                    runOnUiThread(() -> {
+                        updatePlayPauseButton(isPlaying);
+                        Log.d(TAG, "Playback state changed: " + (isPlaying ? "Playing" : "Paused"));
+                    });
                 }
 
                 @Override
-                public void onPlaybackStateChanged(int playbackState) {
-                    if (playbackState == Player.STATE_ENDED) {
-                        MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
-                        switch (repeatMode) {
-                            case NONE:
-                                playNextTrack();
-                                break;
+                public void onTrackChanged(Track currentTrack) {
+                    runOnUiThread(() -> {
+                        updateUI();
+                        Log.d(TAG, "Track changed to: " + (currentTrack != null ? currentTrack.getTitle() : "null"));
+                    });
+                }
+            };
 
-                                case ALL:
-                                    Track test = trackList.get(currentPosition);
-                                    loadAndPlayTrack(test);
-                                    break;
-                                    case ONE:
-                                    Track currentTrack = trackList.get(currentPosition);
-                                    loadAndPlayTrack(currentTrack);
+            // ĐĂNG KÝ OBSERVER
+            musicService.addObserver(musicObserver);
 
-                                    if(time_played>0){
-                                        time_played=0;
-                                        playNextTrack();
-                                        updateUI();
-                                        musicService.getPlaylistManager().setRepeatMode(MusicService.PlaylistManager.RepeatMode.NONE);
-                                        int color = getResources().getColor(R.color.icon_color_secondary, getTheme());
-                                        btnRepeat.setColorFilter(color);
-                                        updateRepeatState();
-                                        break;
-                                    }
-                                    time_played++;
-                                        break;
+            // CẬP NHẬT UI NGAY LẬP TỨC
+            runOnUiThread(() -> {
+                updateUI();
 
+                // KIỂM TRA TRẠNG THÁI SAU 500ms ĐỂ ĐẢM BẢO PLAYER ĐÃ SẴN SÀNG
+                handler.postDelayed(() -> {
+                    if (musicService != null) {
+                        boolean isActuallyPlaying = musicService.isActuallyPlaying();
+                        updatePlayPauseButton(isActuallyPlaying);
+                        Log.d(TAG, "Delayed playback state check: " + (isActuallyPlaying ? "PLAYING" : "PAUSED"));
+
+                        // Nếu vẫn không playing, thử kiểm tra lại sau 1 giây nữa
+                        if (!isActuallyPlaying) {
+                            handler.postDelayed(() -> {
+                                if (musicService != null) {
+                                    boolean finalCheck = musicService.isActuallyPlaying();
+                                    updatePlayPauseButton(finalCheck);
+                                    Log.d(TAG, "Final playback state check: " + (finalCheck ? "PLAYING" : "PAUSED"));
+                                }
+                            }, 1000);
                         }
                     }
-                }
+                }, 500);
             });
 
-            initializePlayer();
-            updateUI();
-            Log.d(TAG, "Service connected");
+            // Bắt đầu cập nhật progress
+            handler.post(updateProgress);
+
+            Log.d(TAG, "Service connected and observer registered");
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            if (musicService != null && musicObserver != null) {
+                musicService.removeObserver(musicObserver);
+            }
             bound = false;
             Log.d(TAG, "Service disconnected");
         }
@@ -131,11 +140,53 @@ public class NowPlayingActivity extends AppCompatActivity {
 
         initializeViews();
         getTrackData();
-        setupClickListeners();
+        setupClickListeners(); // CHỈ GỌI 1 LẦN
 
+        // Kết nối service
         Intent intent = new Intent(this, MusicService.class);
         bindService(intent, connection, Context.BIND_AUTO_CREATE);
 
+        setupSeekBar();
+    }
+
+    private void initializeViews() {
+        try {
+            ivAlbumArt = findViewById(R.id.ivAlbumArt);
+            btnBack = findViewById(R.id.btnBack);
+            btnMenu = findViewById(R.id.btnMenu);
+            tvSongTitle = findViewById(R.id.tvSongTitle);
+            tvArtistName = findViewById(R.id.tvArtistName);
+            tvCurrentTime = findViewById(R.id.tvCurrentTime);
+            tvTotalTime = findViewById(R.id.tvTotalTime);
+            btnNext = findViewById(R.id.btnNext);
+            btnPrevious = findViewById(R.id.btnPrevious);
+            btnShuffle = findViewById(R.id.btnShuffle);
+            btnRepeat = findViewById(R.id.btnRepeat);
+            seekBarLayout = findViewById(R.id.seekBarLayout);
+            seekBarBackground = findViewById(R.id.seekBarBackground);
+            seekBarProgress = findViewById(R.id.seekBarProgress);
+            seekThumb = findViewById(R.id.seekThumb);
+            seekThumbHitbox = findViewById(R.id.seekThumbHitbox);
+
+            View playPauseCard = findViewById(R.id.btnPlayPause);
+            if (playPauseCard != null) {
+                btnPlayPause = playPauseCard.findViewById(R.id.ivPlayPauseIcon);
+            }
+
+            // Back button
+            btnBack.setOnClickListener(v -> finish());
+
+            // Menu button
+            btnMenu.setOnClickListener(v -> showMenuOptions());
+
+            Log.d(TAG, "Khởi tạo giao diện thành công");
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi khi khởi tạo giao diện: " + e.getMessage(), e);
+            Toast.makeText(this, "Lỗi khởi tạo giao diện", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void setupSeekBar() {
         seekThumbHitbox.setOnTouchListener(new View.OnTouchListener() {
             float initialX;
             float touchDownX;
@@ -159,7 +210,6 @@ public class NowPlayingActivity extends AppCompatActivity {
                             float newX = initialX + deltaX;
                             newX = Math.max(0, Math.min(newX, totalWidth));
 
-                            // Di chuyển thumb và hitbox cùng nhau
                             seekThumb.setTranslationX(newX);
                             seekThumbHitbox.setTranslationX(newX);
 
@@ -183,97 +233,6 @@ public class NowPlayingActivity extends AppCompatActivity {
         });
     }
 
-    private void initializeViews() {
-        try {
-            ivAlbumArt = findViewById(R.id.ivAlbumArt);
-            btnBack = findViewById(R.id.btnBack);
-            btnMenu = findViewById(R.id.btnMenu);
-            tvSongTitle = findViewById(R.id.tvSongTitle);
-            tvArtistName = findViewById(R.id.tvArtistName);
-            tvCurrentTime = findViewById(R.id.tvCurrentTime);
-            tvTotalTime = findViewById(R.id.tvTotalTime);
-            btnNext = findViewById(R.id.btnNext);
-            btnPrevious = findViewById(R.id.btnPrevious);
-            btnShuffle = findViewById(R.id.btnShuffle);
-            btnRepeat = findViewById(R.id.btnRepeat);
-            seekBarLayout = findViewById(R.id.seekBarLayout);
-            seekBarBackground = findViewById(R.id.seekBarBackground);
-            seekBarProgress = findViewById(R.id.seekBarProgress);
-            seekThumb = findViewById(R.id.seekThumb);
-            seekThumbHitbox = findViewById(R.id.seekThumbHitbox);
-
-
-            View playPauseCard = findViewById(R.id.btnPlayPause);
-            if (playPauseCard != null) {
-                btnPlayPause = playPauseCard.findViewById(R.id.ivPlayPauseIcon);
-            }
-
-            if (ivAlbumArt == null || btnBack == null || btnMenu == null || tvSongTitle == null || tvArtistName == null ||
-                    tvCurrentTime == null || tvTotalTime == null || btnNext == null || btnPrevious == null || btnShuffle == null ||
-                    btnRepeat == null || seekBarLayout == null || seekBarBackground == null || seekBarProgress == null ||
-                    seekThumb == null || btnPlayPause == null) {
-                Log.e(TAG, "Missing view(s) in layout - check activity_now_playing.xml");
-                Toast.makeText(this, "Lỗi: Thiếu thành phần giao diện", Toast.LENGTH_SHORT).show();
-                finish();
-                return;
-            }
-
-            // Set up drag for seekThumb
-
-            seekThumb.setOnTouchListener(new View.OnTouchListener() {
-                private float initialX;                private float initialThumbX;
-
-                @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    if (bound && musicService != null && musicService.getPlayer() != null) {
-                        Player player = musicService.getPlayer();
-                        float width = seekBarLayout.getWidth() - seekThumb.getWidth();
-                        if (width <= 0) return false;
-
-                        switch (event.getAction()) {
-                            case MotionEvent.ACTION_DOWN:
-                                handler.removeCallbacks(updateProgress);
-                                initialX = event.getRawX(); // Sử dụng getRawX() để có tọa độ tuyệt đối trên màn hình
-                                initialThumbX = seekThumb.getX();
-                                break;
-                            case MotionEvent.ACTION_MOVE:
-                                float dx = event.getRawX() - initialX;
-                                float newX = initialThumbX + dx;
-                                newX = Math.max(0, Math.min(newX, width));
-
-                                // Cập nhật vị trí của seekThumb
-                                seekThumb.setX(newX);
-
-                                float progressPercent = newX / width;
-                                // Cập nhật chiều rộng của seekBarProgress để nó đi theo seekThumb
-                                updateProgressView(progressPercent);
-
-                                long newPosition = (long) (progressPercent * player.getDuration());
-                                tvCurrentTime.setText(formatTime((int) (newPosition / 1000)));
-                                break;
-                            case MotionEvent.ACTION_UP:
-                                float finalX = seekThumb.getX();
-                                float finalProgressPercent = finalX / width;
-                                long finalPosition = (long) (finalProgressPercent * player.getDuration());
-                                player.seekTo(finalPosition);
-                                handler.post(updateProgress);
-                                Log.d(TAG, "Seeked to: " + finalPosition + "ms");
-                                break;
-                        }
-                        return true;
-                    }
-                    return false;
-                }
-            });
-
-
-            Log.d(TAG, "Khởi tạo giao diện thành công");
-        } catch (Exception e) {
-            Log.e(TAG, "Lỗi khi khởi tạo giao diện: " + e.getMessage(), e);
-            Toast.makeText(this, "Lỗi khởi tạo giao diện", Toast.LENGTH_SHORT).show();
-        }
-    }
-
     private void getTrackData() {
         trackList = MusicDataManager.getInstance().getTracks();
         currentPosition = MusicDataManager.getInstance().getCurrentPosition();
@@ -291,200 +250,160 @@ public class NowPlayingActivity extends AppCompatActivity {
         }
 
         Log.d(TAG, "Đã tải " + trackList.size() + " bài hát, vị trí hiện tại: " + currentPosition);
-        updateUI();
     }
 
     private void setupClickListeners() {
-        btnBack.setOnClickListener(v -> finish());
-        btnPlayPause.setOnClickListener(v -> togglePlayPause());
-        btnNext.setOnClickListener(v -> {
-            if (bound && musicService != null) {
-                musicService.playNext();
-                updateUI();
-            } else {
-                playNextTrack();
-            }
+        // Play/Pause
+        btnPlayPause.setOnClickListener(v -> {
+            togglePlayPause();
         });
-        btnPrevious.setOnClickListener(v -> {
-            if (bound && musicService != null) {
-                musicService.playPrevious();
-                updateUI();
-            } else {
-                playPreviousTrack();
-            }
-        });
-        btnShuffle.setOnClickListener(v -> {
-            if (bound && musicService != null) {
-                musicService.getPlaylistManager().toggleShuffle();
-                updateShuffleState();
-            }
-        });
-        btnRepeat.setOnClickListener(v -> {
-            if (bound && musicService != null) {
-                musicService.getPlaylistManager().toggleRepeat();
-                updateRepeatState();
-            }
-        });
-        btnMenu.setOnClickListener(v -> showMenuOptions());
-    }
 
-    private void initializePlayer() {
-        if (bound && musicService != null && trackList != null && !trackList.isEmpty()) {
-            musicService.setPlaylistAndPlay(trackList, currentPosition);
-            Track currentTrack = trackList.get(currentPosition);
-            loadAndPlayTrack(currentTrack);
-            handler.post(updateProgress);
-            Log.d(TAG, "Khởi tạo trình phát thành công");
-        } else {
-            Log.w(TAG, "Không thể khởi tạo trình phát: dịch vụ hoặc danh sách bài hát không sẵn sàng");
-        }
+        // Next
+        btnNext.setOnClickListener(v -> {
+            if (musicService != null) {
+                musicService.playNext();
+            }
+        });
+
+        // Previous
+        btnPrevious.setOnClickListener(v -> {
+            if (musicService != null) {
+                musicService.playPrevious();
+            }
+        });
+
+        // Shuffle
+        btnShuffle.setOnClickListener(v -> {
+            if (musicService != null) {
+                musicService.getPlaylistManager().toggleShuffle();
+                boolean isShuffle = musicService.getPlaylistManager().isShuffle();
+                updateShuffleButton(isShuffle);
+                Toast.makeText(this, isShuffle ? "Bật phát ngẫu nhiên" : "Tắt phát ngẫu nhiên",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Repeat
+        btnRepeat.setOnClickListener(v -> {
+            if (musicService != null) {
+                musicService.getPlaylistManager().toggleRepeat();
+                MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
+                updateRepeatButton(repeatMode);
+
+                String message = "";
+                switch (repeatMode) {
+                    case NONE:
+                        message = "Tắt lặp lại";
+                        break;
+                    case ALL:
+                        message = "Lặp lại tất cả";
+                        break;
+                    case ONE:
+                        message = "Lặp lại một bài";
+                        break;
+                }
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void updateUI() {
-        Track currentTrack = bound && musicService != null ? musicService.getCurrentTrack() :
-                (trackList != null && currentPosition < trackList.size() ? trackList.get(currentPosition) : null);
+        Track currentTrack = bound && musicService != null ? musicService.getCurrentTrack() : null;
 
-        if (currentTrack != null && tvSongTitle != null && tvArtistName != null) {
+        if (currentTrack != null) {
             tvSongTitle.setText(currentTrack.getTitle() != null ? currentTrack.getTitle() : getString(R.string.default_song_title));
             tvArtistName.setText(currentTrack.getArtistName() != null ? currentTrack.getArtistName() : getString(R.string.default_artist_name));
 
-            if (ivAlbumArt != null) {
-                if (currentTrack.getArtworkUri() != null) {
-                    Glide.with(this).load(currentTrack.getArtworkUri())
-                            .placeholder(R.drawable.ic_music_note)
-                            .error(R.drawable.ic_music_note)
-                            .into(ivAlbumArt);
-                } else {
-                    ivAlbumArt.setImageResource(R.drawable.ic_music_note);
-                }
+            if (currentTrack.getArtworkUri() != null) {
+                Glide.with(this).load(currentTrack.getArtworkUri())
+                        .placeholder(R.drawable.ic_music_note)
+                        .error(R.drawable.ic_music_note)
+                        .into(ivAlbumArt);
+            } else {
+                ivAlbumArt.setImageResource(R.drawable.ic_music_note);
             }
 
-            if (tvCurrentTime != null) tvCurrentTime.setText("0:00");
-            if (tvTotalTime != null) tvTotalTime.setText("0:00");
+            // CHỈ CẬP NHẬT SHUFFLE VÀ REPEAT
+            if (musicService != null) {
+                updateShuffleButton(musicService.getPlaylistManager().isShuffle());
+                updateRepeatButton(musicService.getPlaylistManager().getRepeatMode());
+                // KHÔNG CẬP NHẬT PLAY/PAUSE Ở ĐÂY - ĐỂ OBSERVER XỬ LÝ
+            }
 
-            boolean isPlaying = bound && musicService != null && musicService.getPlayer() != null && musicService.getPlayer().isPlaying();
-            updatePlayPauseButton(isPlaying);
-            updateShuffleState();
-            updateRepeatState();
             Log.d(TAG, "Cập nhật giao diện thành công: " + currentTrack.getTitle());
         } else {
-            if (tvSongTitle != null) tvSongTitle.setText(R.string.default_song_title);
-            if (tvArtistName != null) tvArtistName.setText(R.string.default_artist_name);
-            if (ivAlbumArt != null) ivAlbumArt.setImageResource(R.drawable.ic_music_note);
-            if (tvCurrentTime != null) tvCurrentTime.setText("0:00");
-            if (tvTotalTime != null) tvTotalTime.setText("0:00");
-            Log.w(TAG, "Không có bài hát hiện tại hoặc view null");
+            tvSongTitle.setText(R.string.default_song_title);
+            tvArtistName.setText(R.string.default_artist_name);
+            ivAlbumArt.setImageResource(R.drawable.ic_music_note);
+            Log.w(TAG, "Không có bài hát hiện tại");
         }
     }
 
     private void updatePlayPauseButton(boolean isPlaying) {
         if (btnPlayPause != null) {
-            btnPlayPause.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+            int resourceId = isPlaying ? R.drawable.ic_pause : R.drawable.ic_play;
+            btnPlayPause.setImageResource(resourceId);
+            Log.d(TAG, "Play/Pause button updated: " + (isPlaying ? "PAUSE icon (Playing)" : "PLAY icon (Paused)"));
+        } else {
+            Log.e(TAG, "btnPlayPause is null!");
         }
     }
-
     private void togglePlayPause() {
-        if (bound && musicService != null && musicService.getPlayer() != null) {
-            if (musicService.getPlayer().isPlaying()) {
+        if (bound && musicService != null) {
+            if (musicService.isPlaying()) {
                 musicService.pause();
-                updatePlayPauseButton(false);
             } else {
                 musicService.resume();
-                updatePlayPauseButton(true);
             }
-            handler.post(updateProgress);
-        } else {
-            Log.w(TAG, "Không thể chuyển đổi play/pause: dịch vụ hoặc trình phát không sẵn sàng");
-            Toast.makeText(this, "Không thể phát nhạc", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void playNextTrack() {
-        if (trackList != null && !trackList.isEmpty()) {
-            currentPosition = (currentPosition + 1) % trackList.size();
-            MusicDataManager.getInstance().setCurrentPosition(currentPosition);
-            loadAndPlayTrack(trackList.get(currentPosition));
-            updateUI();
+    private void updateShuffleButton(boolean isShuffle) {
+        if (btnShuffle != null) {
+            if (isShuffle) {
+                btnShuffle.setColorFilter(ContextCompat.getColor(this, R.color.primary_color));
+                btnShuffle.setAlpha(1.0f);
+            } else {
+                btnShuffle.setColorFilter(ContextCompat.getColor(this, R.color.icon_color_secondary));
+                btnShuffle.setAlpha(0.7f);
+            }
         }
     }
 
-    private void playPreviousTrack() {
-        if (trackList != null && !trackList.isEmpty()) {
-            currentPosition = (currentPosition - 1 + trackList.size()) % trackList.size();
-            MusicDataManager.getInstance().setCurrentPosition(currentPosition);
-            loadAndPlayTrack(trackList.get(currentPosition));
-            updateUI();
-        }
-    }
-
-    private void updateShuffleState() {
-        if (btnShuffle != null && bound && musicService != null) {
-            boolean isShuffle = musicService.getPlaylistManager().isShuffle();
-            btnShuffle.setColorFilter(isShuffle ?
-                    getResources().getColor(R.color.primary_color, getTheme()) :
-                    getResources().getColor(R.color.icon_color_secondary, getTheme()));
-        }
-    }
-
-    private void updateRepeatState() {
-        if (musicService == null || btnRepeat == null) return;
-
-        MusicService.PlaylistManager.RepeatMode mode = musicService.getPlaylistManager().getRepeatMode();
-        int color;
-        if (mode == MusicService.PlaylistManager.RepeatMode.NONE) {
-            color = getResources().getColor(R.color.icon_color_secondary, getTheme());
-        } else {
-            color = getResources().getColor(R.color.primary_color, getTheme());
-            // Thêm logic để phân biệt REPEAT_ONE nếu cần (ví dụ: thay đổi icon)
-        }
-        btnRepeat.setColorFilter(color);
-    }
-
-    private void loadAndPlayTrack(Track track) {
-        if (track == null || (track.getStreamUri() == null && track.getStreamUrl() == null)) {
-            Log.e(TAG, "Bài hát hoặc URL âm thanh không hợp lệ: " + (track != null ? track.getTitle() : "null"));
-            Toast.makeText(this, "Không thể phát bài hát này", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        if (bound && musicService != null) {
-            musicService.playTrack(track);
-            handler.post(updateProgress);
-            Log.d(TAG, "Đang phát bài hát: " + track.getTitle());
-        } else {
-            Log.w(TAG, "Dịch vụ không khả dụng, không thể phát bài hát");
-            Toast.makeText(this, "Không thể phát nhạc", Toast.LENGTH_SHORT).show();
+    private void updateRepeatButton(MusicService.PlaylistManager.RepeatMode repeatMode) {
+        if (btnRepeat != null) {
+            switch (repeatMode) {
+                case NONE:
+                    btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.icon_color_secondary));
+                    btnRepeat.setAlpha(0.7f);
+                    break;
+                case ALL:
+                case ONE:
+                    btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.primary_color));
+                    btnRepeat.setAlpha(1.0f);
+                    break;
+            }
         }
     }
 
     private void updateProgressView(float progressPercent) {
         if (seekBarLayout == null || seekBarProgress == null || seekThumb == null) return;
 
-        // Tổng khoảng thumb có thể di chuyển
         int totalWidth = seekBarLayout.getWidth() - seekThumb.getWidth();
         if (totalWidth <= 0) return;
 
-        // Vị trí cạnh trái của thumb
         float thumbLeftX = totalWidth * progressPercent;
-
-        // Cập nhật vị trí thumb (dịch chuyển theo progress)
         seekThumb.setTranslationX(thumbLeftX);
-        View seekThumbHitbox = findViewById(R.id.seekThumbHitbox);
+
         if (seekThumbHitbox != null) {
             seekThumbHitbox.setTranslationX(thumbLeftX);
         }
 
-        // Tính chiều rộng progress kết thúc tại TÂM thumb
         float progressWidth = thumbLeftX + (seekThumb.getWidth() / 2f);
-
-        // Cập nhật LayoutParams cho progress
         ViewGroup.LayoutParams params = seekBarProgress.getLayoutParams();
         params.width = (int) progressWidth;
         seekBarProgress.setLayoutParams(params);
     }
-
-
-
 
     private String formatTime(int seconds) {
         int minutes = seconds / 60;
@@ -500,26 +419,50 @@ public class NowPlayingActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        Intent intent = new Intent(this, MusicService.class);
-        bindService(intent, connection, Context.BIND_AUTO_CREATE); // Sử dụng ServiceConnection
+        // Service đã được bind trong onCreate
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        if (bound) {
-            unbindService(connection);
-            bound = false;
-            Log.d(TAG, "Dịch vụ đã được ngắt kết nối");
-        }
+        handler.removeCallbacks(updateProgress);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        // QUAN TRỌNG: REMOVE OBSERVER VÀ UNBIND SERVICE
+        if (bound) {
+            if (musicService != null && musicObserver != null) {
+                musicService.removeObserver(musicObserver);
+                Log.d(TAG, "Observer removed");
+            }
+            unbindService(connection);
+            bound = false;
+            Log.d(TAG, "Service unbound");
+        }
+
         handler.removeCallbacksAndMessages(null);
-        Log.d(TAG, "Activity đã bị hủy");
+        Log.d(TAG, "Activity destroyed");
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
 
+        // CẬP NHẬT UI KHI ACTIVITY RESUME
+        if (bound && musicService != null) {
+            updateUI();
+
+            // KIỂM TRA LẠI TRẠNG THÁI PLAYBACK
+            handler.postDelayed(() -> {
+                if (musicService != null) {
+                    boolean isActuallyPlaying = musicService.isActuallyPlaying();
+                    updatePlayPauseButton(isActuallyPlaying);
+                    Log.d(TAG, "onResume playback state: " + (isActuallyPlaying ? "PLAYING" : "PAUSED"));
+                }
+            }, 300);
+        }
+    }
 }

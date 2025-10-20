@@ -1,9 +1,13 @@
 package com.example.musicbanger.adapters;
 
+import android.app.Activity;
+import android.content.Context;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -11,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.musicbanger.R;
+import com.example.musicbanger.manager.UserPlaylistManager;
 import com.example.musicbanger.model.Track;
 
 import java.util.ArrayList;
@@ -21,11 +26,25 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     private List<Track> tracks;
     private final OnSongClickListener listener;
     private final boolean isHorizontal;
+    private OnSongMenuClickListener menuClickListener;
+
+    // Thêm biến để kiểm soát hiển thị option xóa
+    private boolean showRemoveOption = false;
 
     public SongAdapter(List<Track> tracks, OnSongClickListener listener, boolean isHorizontal) {
         this.tracks = tracks != null ? tracks : new ArrayList<>();
         this.listener = listener;
         this.isHorizontal = isHorizontal;
+
+        // DEBUG LOG
+        android.util.Log.d("SongAdapter", "Adapter created - Tracks: " + this.tracks.size() +
+                ", Listener: " + (listener != null) +
+                ", Horizontal: " + isHorizontal);
+    }
+
+    // Phương thức để bật/tắt option xóa
+    public void setShowRemoveOption(boolean showRemoveOption) {
+        this.showRemoveOption = showRemoveOption;
     }
 
     @NonNull
@@ -41,12 +60,21 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         Track track = tracks.get(position);
         holder.bind(track);
 
+        // Xử lý click menu (nút 3 chấm) - CHỈ cho layout vertical
+        if (holder.ivMore != null) {
+            holder.ivMore.setOnClickListener(v -> {
+                showSongMenu(holder.itemView.getContext(), track, position, holder.ivMore);
+            });
+        }
+
+        // Click vào item để phát nhạc
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onSongClick(position, isHorizontal);
             }
         });
 
+        // Long click
         holder.itemView.setOnLongClickListener(v -> {
             if (listener != null) {
                 listener.onSongLongClick(position, isHorizontal);
@@ -54,6 +82,76 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
             }
             return false;
         });
+    }
+
+    private void showSongMenu(Context context, Track track, int position, View anchorView) {
+        PopupMenu popupMenu = new PopupMenu(context, anchorView);
+        popupMenu.inflate(R.menu.song_context_menu);
+
+        // Thêm option xóa nếu được yêu cầu
+        if (showRemoveOption) {
+            MenuItem removeItem = popupMenu.getMenu().add("Xóa khỏi playlist");
+            removeItem.setOnMenuItemClickListener(item -> {
+                if (menuClickListener != null) {
+                    menuClickListener.onRemoveFromPlaylist(track);
+                }
+                return true;
+            });
+        }
+
+        // Cập nhật trạng thái yêu thích
+        MenuItem favoriteItem = popupMenu.getMenu().findItem(R.id.menu_favorite);
+
+        // KIỂM TRA YÊU THÍCH BẰNG CALLBACK ĐỂ TRÁNH BLOCK UI
+        UserPlaylistManager.getInstance().isFavorite(track, new UserPlaylistManager.FavoriteCallback() {
+            @Override
+            public void onFavoriteChecked(boolean isFavorite) {
+                ((Activity) context).runOnUiThread(() -> {
+                    if (isFavorite) {
+                        favoriteItem.setTitle("Bỏ yêu thích");
+                        favoriteItem.setIcon(R.drawable.ic_favorite);
+                    } else {
+                        favoriteItem.setTitle("Yêu thích");
+                        favoriteItem.setIcon(R.drawable.ic_favorite);
+                    }
+                });
+            }
+        });
+
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            android.util.Log.d("SongAdapter", "Menu item clicked: " + item.getTitle());
+
+            if (id == R.id.menu_favorite) {
+                android.util.Log.d("SongAdapter", "Favorite menu clicked for track: " + track.getTitle());
+                if (menuClickListener != null) {
+                    menuClickListener.onToggleFavorite(track);
+                    android.util.Log.d("SongAdapter", "Menu click listener called");
+                } else {
+                    android.util.Log.e("SongAdapter", "Menu click listener is NULL!");
+                }
+                return true;
+            } else if (id == R.id.menu_add_to_playlist) {
+                android.util.Log.d("SongAdapter", "Add to playlist menu clicked");
+                if (menuClickListener != null) {
+                    menuClickListener.onAddToPlaylist(track);
+                }
+                return true;
+            } else if (id == R.id.menu_add_to_queue) {
+                if (menuClickListener != null) {
+                    menuClickListener.onAddToQueue(track);
+                }
+                return true;
+            } else if (showRemoveOption && item.getTitle().equals("Xóa khỏi playlist")) {
+                if (menuClickListener != null) {
+                    menuClickListener.onRemoveFromPlaylist(track);
+                }
+                return true;
+            }
+            return false;
+        });
+
+        popupMenu.show();
     }
 
     @Override
@@ -130,6 +228,17 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
                 ivAlbumArt.setImageResource(R.drawable.ic_music_note);
             }
         }
+    }
+
+    public interface OnSongMenuClickListener {
+        void onAddToPlaylist(Track track);
+        void onToggleFavorite(Track track);
+        void onAddToQueue(Track track);
+        void onRemoveFromPlaylist(Track track);
+    }
+
+    public void setOnSongMenuClickListener(OnSongMenuClickListener listener) {
+        this.menuClickListener = listener;
     }
 
     public interface OnSongClickListener {
