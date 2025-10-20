@@ -1,0 +1,11 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Màu nền -->
+    <solid android:color="@color/item_placeholder_background" /> <!-- Tím, bạn có thể đổi -->
+
+    <!-- Bo góc -->
+    <corners android:radius="16dp" />
+
+
+</shape>

@@ -144,8 +144,9 @@
                 android:gravity="center"
                 android:layout_marginBottom="30dp">
 
-                <!-- Các quick action buttons giữ nguyên -->
+                <!-- Yêu thích -->
                 <androidx.cardview.widget.CardView
+                    android:id="@+id/btnFavorites"
                     android:layout_width="0dp"
                     android:layout_height="80dp"
                     android:layout_weight="1"
@@ -162,6 +163,7 @@
                         android:padding="12dp">
 
                         <ImageView
+                            android:id="@+id/ivFavoriteIcon"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
                             android:src="@drawable/ic_favorite"
@@ -178,7 +180,9 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
+                <!-- Playlist -->
                 <androidx.cardview.widget.CardView
+                    android:id="@+id/btnPlaylists"
                     android:layout_width="0dp"
                     android:layout_height="80dp"
                     android:layout_weight="1"
@@ -212,7 +216,9 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
+                <!-- Lịch sử -->
                 <androidx.cardview.widget.CardView
+                    android:id="@+id/btnHistory"
                     android:layout_width="0dp"
                     android:layout_height="80dp"
                     android:layout_weight="1"

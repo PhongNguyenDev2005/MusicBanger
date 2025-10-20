@@ -3,8 +3,8 @@ package com.example.musicbanger.model;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
-
 import com.google.gson.annotations.SerializedName;
+import java.util.Objects;
 
 public class Track implements Parcelable {
     @SerializedName("id")
@@ -25,8 +25,9 @@ public class Track implements Parcelable {
     @SerializedName("duration")
     private int duration;
 
-    private Uri streamUri;
-    private Uri artworkUri;
+    // LOẠI BỎ CÁC FIELD URI - CHÚNG SẼ ĐƯỢC TÍNH TOÁN KHI CẦN
+    // private Uri streamUri;
+    // private Uri artworkUri;
 
     // Constructor mặc định
     public Track() {
@@ -38,18 +39,11 @@ public class Track implements Parcelable {
         this.title = title;
         this.artist = new Artist(artistName);
         this.album = new Album(albumName, artworkUrl);
-        this.streamUrl = streamUrl; // LƯU streamUrl
+        this.streamUrl = streamUrl;
         this.duration = duration;
-
-        if (streamUrl != null) {
-            this.streamUri = Uri.parse(streamUrl);
-        }
-        if (artworkUrl != null) {
-            this.artworkUri = Uri.parse(artworkUrl);
-        }
     }
 
-    // Getter methods
+    // Getter methods - TÍNH TOÁN URI KHI CẦN
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getArtistName() {
@@ -58,21 +52,24 @@ public class Track implements Parcelable {
     public String getAlbumName() {
         return album != null ? album.getTitle() : "Unknown Album";
     }
-    public Uri getStreamUri() {
-        if (streamUri == null && streamUrl != null) {
-            streamUri = Uri.parse(streamUrl);
-        }
-        return streamUri;
-    }
-    public Uri getArtworkUri() {
-        if (artworkUri == null && album != null && album.getCover() != null) {
-            artworkUri = Uri.parse(album.getCover());
-        }
-        return artworkUri;
-    }
-    public int getDuration() { return duration; }
 
-    // Inner classes for GSON parsing - PHẢI IMPLEMENTS PARCELABLE
+    public Uri getStreamUri() {
+        // TÍNH TOÁN KHI CẦN, KHÔNG LƯU TRỮ
+        return streamUrl != null ? Uri.parse(streamUrl) : null;
+    }
+
+    public Uri getArtworkUri() {
+        // TÍNH TOÁN KHI CẦN, KHÔNG LƯU TRỮ
+        if (album != null && album.getCover() != null) {
+            return Uri.parse(album.getCover());
+        }
+        return null;
+    }
+
+    public int getDuration() { return duration; }
+    public String getStreamUrl() { return streamUrl; }
+
+    // Inner classes
     public static class Artist implements Parcelable {
         @SerializedName("name")
         private String name;
@@ -83,7 +80,6 @@ public class Track implements Parcelable {
 
         public String getName() { return name; }
 
-        // Parcelable implementation for Artist
         protected Artist(Parcel in) {
             name = in.readString();
         }
@@ -126,7 +122,6 @@ public class Track implements Parcelable {
         public String getTitle() { return title; }
         public String getCover() { return cover; }
 
-        // Parcelable implementation for Album
         protected Album(Parcel in) {
             title = in.readString();
             cover = in.readString();
@@ -156,16 +151,12 @@ public class Track implements Parcelable {
         }
     }
 
-    // Parcelable implementation for Track
+    // Parcelable implementation - SỬA LẠI, KHÔNG GHI/ĐỌC URI
     protected Track(Parcel in) {
         id = in.readString();
         title = in.readString();
         streamUrl = in.readString();
         duration = in.readInt();
-        streamUri = in.readParcelable(Uri.class.getClassLoader());
-        artworkUri = in.readParcelable(Uri.class.getClassLoader());
-
-        // Đọc các object phức tạp - SỬA LẠI CÁCH ĐỌC
         artist = in.readParcelable(Artist.class.getClassLoader());
         album = in.readParcelable(Album.class.getClassLoader());
     }
@@ -193,15 +184,20 @@ public class Track implements Parcelable {
         dest.writeString(title);
         dest.writeString(streamUrl);
         dest.writeInt(duration);
-        dest.writeParcelable(streamUri, flags);
-        dest.writeParcelable(artworkUri, flags);
-
-        // Ghi các object phức tạp
         dest.writeParcelable(artist, flags);
         dest.writeParcelable(album, flags);
     }
 
-    public String getStreamUrl() {
-        return streamUrl;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Track track = (Track) o;
+        return Objects.equals(id, track.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }
