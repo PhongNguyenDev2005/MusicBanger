@@ -112,27 +112,19 @@ public class MusicService extends MediaBrowserServiceCompat {
             player.addListener(new Player.Listener() {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
-                    if (playbackState == Player.STATE_ENDED) handleTrackEnded();
-//                    Log.d(TAG, "Playback state changed: " + playbackState);
-//                    try {
-//                        updateMediaSession();
-//                        updateNotification();
-//
-//                        // THÔNG BÁO TRẠNG THÁI PLAYBACK KHI CÓ THAY ĐỔI
-//                        boolean isPlaying = player != null && player.isPlaying();
-//                        notifyPlaybackStateChanged(isPlaying);
-//
-//                        if (playbackState == Player.STATE_ENDED) {
-//                            // LƯU BÀI HÁT VÀO LỊCH SỬ KHI KẾT THÚC
-//                            Track currentTrack = getCurrentTrack();
-//                            if (currentTrack != null) {
-//                                UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
-//                            }
-//                            playNext();
-//                        }
-//                    } catch (Exception e) {
-//                        Log.e(TAG, "Error in playback state changed: " + e.getMessage(), e);
-//                    }
+                    Log.d(TAG, "Playback state changed: " + playbackState);
+
+                    if (player == null) return;
+
+                    updateMediaSession();
+                    updateNotification();
+                    boolean isPlaying = player.isPlaying();
+                    notifyPlaybackStateChanged(isPlaying);
+
+                    if (playbackState == Player.STATE_ENDED) {
+                        saveToRecentlyPlayed();
+                        handleTrackEnded();
+                    }
                 }
 
                 @Override
@@ -164,6 +156,17 @@ public class MusicService extends MediaBrowserServiceCompat {
         } catch (Exception e) {
             Log.e(TAG, "Error initializing player: " + e.getMessage(), e);
         }
+    }
+
+    private void saveToRecentlyPlayed() {
+        Track currentTrack = getCurrentTrack();
+        if (currentTrack == null) {
+            Log.w(TAG, "saveToRecentlyPlayed: no current track to save");
+            return;
+        }
+
+        UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
+        Log.d(TAG, "Added to recently played: " + currentTrack.getTitle());
     }
 
     private void handleTrackEnded() {
@@ -201,6 +204,15 @@ public class MusicService extends MediaBrowserServiceCompat {
                     break;
 
                 case ALL:
+                    Track nextTrack = playlist.next();
+                    if (nextTrack != null) {
+                        playTrack(nextTrack);
+                    } else {
+                        playlist.resetToStart();
+                        playTrack(playlist.getCurrent());
+                    }
+                    break;
+
                 case NONE:
                 default:
                     Track next = playlist.next();
@@ -784,9 +796,8 @@ public class MusicService extends MediaBrowserServiceCompat {
 
     // PlaylistManager class (giữ nguyên)
     public class PlaylistManager {
-        public enum RepeatMode { NONE, ONE, ALL }
-        private int RepeatCounter = 0;
 
+        public enum RepeatMode { NONE, ONE, ALL }
         private final List<Track> original = new ArrayList<>();
         private final List<Track> playback = new ArrayList<>();
         private int index = 0;
@@ -805,6 +816,14 @@ public class MusicService extends MediaBrowserServiceCompat {
             } catch (Exception e) {
                 Log.e(TAG, "Error setting playlist: " + e.getMessage(), e);
             }
+        }
+
+        private void resetToStart() {
+            if (playback == null || playback.isEmpty()){
+                Log.d(TAG, "fail resetToStart: playlist trống");
+                return;
+            }
+            index = 0;
         }
 
         private void rebuild() {
