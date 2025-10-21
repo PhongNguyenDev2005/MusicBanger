@@ -303,7 +303,7 @@ public class NowPlayingActivity extends AppCompatActivity {
     private String getRepeatModeMessage(MusicService.PlaylistManager.RepeatMode repeatMode) {
         return switch (repeatMode) {
             case NONE -> "Repeat Off";
-            case ALL -> "Repeat All (Indefinitely)";
+            case ALL -> "Repeat Whole Playlist";
             case ONE -> "Repeat Current Track Once";
             default -> "Repeat Mode Changed";
         };
