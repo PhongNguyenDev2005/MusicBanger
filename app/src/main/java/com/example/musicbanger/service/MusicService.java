@@ -174,13 +174,7 @@ public class MusicService extends MediaBrowserServiceCompat {
 
             long duration = player.getDuration();
             Track currentTrack = getCurrentTrack();
-
-            if (currentTrack != null) {
-                UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
-            }
-
             PlaylistManager.RepeatMode repeatMode = playlist.getRepeatMode();
-
             switch (repeatMode) {
                 case ONE:
                     player.seekTo(0);
