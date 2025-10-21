@@ -850,6 +850,7 @@ public class MusicService extends MediaBrowserServiceCompat {
             if (currentPosition > 3000){
                 player.seekTo(0);
                 player.play();
+                return null;
             }
             if (playback.isEmpty()) {
                 Log.d(TAG, "Playback list is empty");
