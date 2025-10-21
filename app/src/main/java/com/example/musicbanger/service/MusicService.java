@@ -172,24 +172,8 @@ public class MusicService extends MediaBrowserServiceCompat {
     private void handleTrackEnded() {
             if (player == null || playlist == null) return;
 
-            long currentPosition = player.getCurrentPosition();
             long duration = player.getDuration();
             Track currentTrack = getCurrentTrack();
-
-            Log.d(TAG, "Track ended. Position: " + currentPosition + " / " + duration);
-
-
-            if (currentPosition < 3000) {
-                Log.d(TAG, "Bài trc");
-                Track prev = playlist.previous();
-                if (prev != null) {
-                    playTrack(prev);
-                } else {
-                    Log.d(TAG, "Không tìm đc bài trc");
-                    notifyPlaybackStateChanged(false);
-                }
-                return;
-            }
 
             if (currentTrack != null) {
                 UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
@@ -668,13 +652,14 @@ public class MusicService extends MediaBrowserServiceCompat {
 
     public void playPrevious() {
         //VINH: t thế cái try catch thành if cho nó performance hơn
+        long currentPosition = player.getCurrentPosition();
         if (playlist == null){
             Log.w(TAG, "Playlist is null");
             notifyPlaybackStateChanged(false);
             return;
         }
 
-        Track prev = playlist.previous();
+        Track prev = playlist.previous(currentPosition);
         if (prev == null){
             Log.w(TAG, "no previous track available");
             notifyPlaybackStateChanged(false);
@@ -867,7 +852,11 @@ public class MusicService extends MediaBrowserServiceCompat {
             return nextTrack;
         }
 
-        public Track previous() {
+        public Track previous(long currentPosition) {
+            if (currentPosition > 3000){
+                player.seekTo(0);
+                player.play();
+            }
             if (playback.isEmpty()) {
                 Log.d(TAG, "Playback list is empty");
                 return null;
