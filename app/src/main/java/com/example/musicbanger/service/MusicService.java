@@ -112,26 +112,27 @@ public class MusicService extends MediaBrowserServiceCompat {
             player.addListener(new Player.Listener() {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
-                    Log.d(TAG, "Playback state changed: " + playbackState);
-                    try {
-                        updateMediaSession();
-                        updateNotification();
-
-                        // THÔNG BÁO TRẠNG THÁI PLAYBACK KHI CÓ THAY ĐỔI
-                        boolean isPlaying = player != null && player.isPlaying();
-                        notifyPlaybackStateChanged(isPlaying);
-
-                        if (playbackState == Player.STATE_ENDED) {
-                            // LƯU BÀI HÁT VÀO LỊCH SỬ KHI KẾT THÚC
-                            Track currentTrack = getCurrentTrack();
-                            if (currentTrack != null) {
-                                UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
-                            }
-                            playNext();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in playback state changed: " + e.getMessage(), e);
-                    }
+                    if (playbackState == Player.STATE_ENDED) handleTrackEnded();
+//                    Log.d(TAG, "Playback state changed: " + playbackState);
+//                    try {
+//                        updateMediaSession();
+//                        updateNotification();
+//
+//                        // THÔNG BÁO TRẠNG THÁI PLAYBACK KHI CÓ THAY ĐỔI
+//                        boolean isPlaying = player != null && player.isPlaying();
+//                        notifyPlaybackStateChanged(isPlaying);
+//
+//                        if (playbackState == Player.STATE_ENDED) {
+//                            // LƯU BÀI HÁT VÀO LỊCH SỬ KHI KẾT THÚC
+//                            Track currentTrack = getCurrentTrack();
+//                            if (currentTrack != null) {
+//                                UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
+//                            }
+//                            playNext();
+//                        }
+//                    } catch (Exception e) {
+//                        Log.e(TAG, "Error in playback state changed: " + e.getMessage(), e);
+//                    }
                 }
 
                 @Override
@@ -164,6 +165,54 @@ public class MusicService extends MediaBrowserServiceCompat {
             Log.e(TAG, "Error initializing player: " + e.getMessage(), e);
         }
     }
+
+    private void handleTrackEnded() {
+            if (player == null || playlist == null) return;
+
+            long currentPosition = player.getCurrentPosition();
+            long duration = player.getDuration();
+            Track currentTrack = getCurrentTrack();
+
+            Log.d(TAG, "Track ended. Position: " + currentPosition + " / " + duration);
+
+
+            if (currentPosition < 3000) {
+                Log.d(TAG, "Bài trc");
+                Track prev = playlist.previous();
+                if (prev != null) {
+                    playTrack(prev);
+                } else {
+                    Log.d(TAG, "Không tìm đc bài trc");
+                    notifyPlaybackStateChanged(false);
+                }
+                return;
+            }
+
+            if (currentTrack != null) {
+                UserPlaylistManager.getInstance().addToRecentlyPlayed(currentTrack);
+            }
+
+            PlaylistManager.RepeatMode repeatMode = playlist.getRepeatMode();
+
+            switch (repeatMode) {
+                case ONE:
+                    player.seekTo(0);
+                    player.play();
+                    break;
+
+                case ALL:
+                case NONE:
+                default:
+                    Track next = playlist.next();
+                    if (next != null) {
+                        playTrack(next);
+                    } else {
+                        notifyPlaybackStateChanged(false);
+                    }
+                    break;
+            }
+    }
+
     private Handler handler = new Handler();
 
     private void initializeMediaSession() {
@@ -606,18 +655,20 @@ public class MusicService extends MediaBrowserServiceCompat {
     }
 
     public void playPrevious() {
-        try {
-            Log.d(TAG, "playPrevious called");
-            Track prev = playlist.previous();
-            if (prev != null) {
-                playTrack(prev); // playTrack sẽ tự động gọi notifyTrackChanged
-            } else {
-                // Nếu không có bài trước đó, vẫn thông báo playback state
-                notifyPlaybackStateChanged(false);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in playPrevious: " + e.getMessage(), e);
+        //VINH: t thế cái try catch thành if cho nó performance hơn
+        if (playlist == null){
+            Log.w(TAG, "Playlist is null");
+            notifyPlaybackStateChanged(false);
+            return;
         }
+
+        Track prev = playlist.previous();
+        if (prev == null){
+            Log.w(TAG, "no previous track available");
+            notifyPlaybackStateChanged(false);
+            return;
+        }
+        playTrack(prev);
     }
 
     public void pause() {
@@ -734,6 +785,7 @@ public class MusicService extends MediaBrowserServiceCompat {
     // PlaylistManager class (giữ nguyên)
     public class PlaylistManager {
         public enum RepeatMode { NONE, ONE, ALL }
+        private int RepeatCounter = 0;
 
         private final List<Track> original = new ArrayList<>();
         private final List<Track> playback = new ArrayList<>();

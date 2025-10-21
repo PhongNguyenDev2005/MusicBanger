@@ -290,21 +290,23 @@ public class NowPlayingActivity extends AppCompatActivity {
                 MusicService.PlaylistManager.RepeatMode repeatMode = musicService.getPlaylistManager().getRepeatMode();
                 updateRepeatButton(repeatMode);
 
-                String message = "";
-                switch (repeatMode) {
-                    case NONE:
-                        message = "Tắt lặp lại";
-                        break;
-                    case ALL:
-                        message = "Lặp lại tất cả";
-                        break;
-                    case ONE:
-                        message = "Lặp lại một bài";
-                        break;
-                }
+
+                String message = getRepeatModeMessage(repeatMode);
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+
+                Log.d(TAG, "Repeat mode changed to: " + repeatMode.name());
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private String getRepeatModeMessage(MusicService.PlaylistManager.RepeatMode repeatMode) {
+        return switch (repeatMode) {
+            case NONE -> "Repeat Off";
+            case ALL -> "Repeat All (Indefinitely)";
+            case ONE -> "Repeat Current Track Once";
+            default -> "Repeat Mode Changed";
+        };
     }
 
     private void updateUI() {
@@ -374,15 +376,25 @@ public class NowPlayingActivity extends AppCompatActivity {
         if (btnRepeat != null) {
             switch (repeatMode) {
                 case NONE:
+                    btnRepeat.setImageResource(R.drawable.ic_repeat);
                     btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.icon_color_secondary));
                     btnRepeat.setAlpha(0.7f);
                     break;
+
                 case ALL:
+                    btnRepeat.setImageResource(R.drawable.ic_repeat);
+                    btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.primary_color));
+                    btnRepeat.setAlpha(1.0f);
+                    break;
+
                 case ONE:
+                    btnRepeat.setImageResource(R.drawable.ic_repeat_once);
                     btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.primary_color));
                     btnRepeat.setAlpha(1.0f);
                     break;
             }
+
+            Log.d(TAG, "Repeat button updated for mode: " + repeatMode.name());
         }
     }
 
@@ -419,7 +431,6 @@ public class NowPlayingActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        // Service đã được bind trong onCreate
     }
 
     @Override
@@ -432,7 +443,7 @@ public class NowPlayingActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-        // QUAN TRỌNG: REMOVE OBSERVER VÀ UNBIND SERVICE
+        // IMPORTANT: REMOVE OBSERVER AND UNBIND SERVICE
         if (bound) {
             if (musicService != null && musicObserver != null) {
                 musicService.removeObserver(musicObserver);
@@ -451,11 +462,11 @@ public class NowPlayingActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        // CẬP NHẬT UI KHI ACTIVITY RESUME
+        // UPDATE UI WHEN ACTIVITY RESUMES
         if (bound && musicService != null) {
             updateUI();
 
-            // KIỂM TRA LẠI TRẠNG THÁI PLAYBACK
+            // RECHECK PLAYBACK STATE
             handler.postDelayed(() -> {
                 if (musicService != null) {
                     boolean isActuallyPlaying = musicService.isActuallyPlaying();
